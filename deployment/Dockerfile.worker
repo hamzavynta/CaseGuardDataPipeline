@@ -1,0 +1,53 @@
+# Multi-stage Docker build for CaseGuard V2 Prefect Worker
+FROM python:3.11-slim AS base
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app" \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    git \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Production dependencies stage
+FROM base AS dependencies
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install Poetry
+RUN pip install poetry==1.8.3
+
+# Configure Poetry
+RUN poetry config virtualenvs.create false
+
+# Install dependencies (including worker-specific ones)
+RUN poetry install --only=main --no-interaction --no-ansi
+
+# Application stage
+FROM dependencies AS application
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash caseguard
+
+# Copy application code
+COPY . .
+
+# Create necessary directories
+RUN mkdir -p /app/logs /app/output /app/data && \
+    chown -R caseguard:caseguard /app
+
+# Switch to non-root user
+USER caseguard
+
+# Default command - run Prefect worker
+CMD ["python", "-m", "prefect", "worker", "start", "--pool", "${WORK_POOL_NAME:-caseguard-pool}", "--name", "${WORKER_NAME:-caseguard-worker}"]

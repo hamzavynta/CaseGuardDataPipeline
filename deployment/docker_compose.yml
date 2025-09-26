@@ -1,0 +1,263 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for V2 architecture
+  postgres:
+    image: postgres:16-alpine
+    container_name: caseguard-postgres
+    environment:
+      POSTGRES_DB: caseguard_v2
+      POSTGRES_USER: caseguard_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-caseguard_secure_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caseguard_user -d caseguard_v2"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Valkey (Redis) for job queuing and caching
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    container_name: caseguard-valkey
+    command: valkey-server --requirepass ${REDIS_PASSWORD:-caseguard_redis_secure}
+    volumes:
+      - valkey_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-caseguard_redis_secure}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Prefect server for workflow orchestration
+  prefect-server:
+    image: prefecthq/prefect:2.19-python3.11
+    container_name: caseguard-prefect-server
+    environment:
+      PREFECT_UI_URL: http://0.0.0.0:4200/api
+      PREFECT_API_URL: http://0.0.0.0:4200/api
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://caseguard_user:${POSTGRES_PASSWORD:-caseguard_secure_password}@postgres:5432/caseguard_v2
+    ports:
+      - "${PREFECT_PORT:-4200}:4200"
+    command: prefect server start --host 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4200/api/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # CaseGuard V2 main application
+  caseguard-api:
+    build:
+      context: ../
+      dockerfile: deployment/Dockerfile.api
+    container_name: caseguard-api
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://caseguard_user:${POSTGRES_PASSWORD:-caseguard_secure_password}@postgres:5432/caseguard_v2
+
+      # Redis/Valkey configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD:-caseguard_redis_secure}@valkey:6379
+
+      # Prefect configuration
+      PREFECT_API_URL: http://prefect-server:4200/api
+
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      LLAMA_CLOUD_API_KEY: ${LLAMA_CLOUD_API_KEY}
+
+      # Proclaim configuration
+      PROCLAIM_USERNAME: ${PROCLAIM_USERNAME}
+      PROCLAIM_PASSWORD: ${PROCLAIM_PASSWORD}
+
+      # Application settings
+      CASEGUARD_ENV: production
+      TENANT_CONFIG_DIR: /app/v2/configs/tenants
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+      # Security
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET:-generate_secure_jwt_secret}
+
+      # Performance
+      MAX_WORKERS: ${MAX_WORKERS:-4}
+      WORKER_TIMEOUT: ${WORKER_TIMEOUT:-120}
+    volumes:
+      - ../output:/app/output
+      - ../data:/app/data
+      - logs:/app/logs
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      prefect-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Prefect worker for processing jobs
+  prefect-worker:
+    build:
+      context: ../
+      dockerfile: deployment/Dockerfile.worker
+    container_name: caseguard-prefect-worker
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://caseguard_user:${POSTGRES_PASSWORD:-caseguard_secure_password}@postgres:5432/caseguard_v2
+
+      # Redis/Valkey configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD:-caseguard_redis_secure}@valkey:6379
+
+      # Prefect configuration
+      PREFECT_API_URL: http://prefect-server:4200/api
+
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      LLAMA_CLOUD_API_KEY: ${LLAMA_CLOUD_API_KEY}
+
+      # Proclaim configuration
+      PROCLAIM_USERNAME: ${PROCLAIM_USERNAME}
+      PROCLAIM_PASSWORD: ${PROCLAIM_PASSWORD}
+
+      # Worker settings
+      WORKER_NAME: caseguard-worker-1
+      WORK_POOL_NAME: caseguard-pool
+      PREFECT_LOGGING_LEVEL: ${LOG_LEVEL:-INFO}
+    volumes:
+      - ../output:/app/output
+      - ../data:/app/data
+      - logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      prefect-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+    deploy:
+      replicas: ${WORKER_REPLICAS:-2}
+
+  # Monitoring dashboard (Grafana)
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: caseguard-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin_password}
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: caseguard-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.external-url=http://localhost:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: caseguard-nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - caseguard-api
+      - grafana
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+  # Log aggregation with Fluentd
+  fluentd:
+    image: fluent/fluentd:v1.16-1
+    container_name: caseguard-fluentd
+    volumes:
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
+      - logs:/var/log/caseguard
+      - nginx_logs:/var/log/nginx
+    ports:
+      - "24224:24224"
+      - "24224:24224/udp"
+    restart: unless-stopped
+    networks:
+      - caseguard-network
+
+networks:
+  caseguard-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_data:
+    driver: local
+  valkey_data:
+    driver: local
+  grafana_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  nginx_logs:
+    driver: local
+  logs:
+    driver: local

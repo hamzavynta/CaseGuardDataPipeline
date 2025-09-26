@@ -1,0 +1,1 @@
+"""V2 AI components for pure LLM-driven insights."""

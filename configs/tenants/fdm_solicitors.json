@@ -1,0 +1,149 @@
+{
+  "tenant_id": "fdm_solicitors",
+  "display_name": "FDM Solicitors",
+  "is_active": true,
+  "created_at": "2024-09-26T00:00:00Z",
+  "crm_config": {
+    "type": "proclaim",
+    "api_base_url": "http://52.158.28.226:8085",
+    "credentials": {
+      "username": "${PROCLAIM_USERNAME}",
+      "password": "${PROCLAIM_PASSWORD}"
+    },
+    "case_discovery": {
+      "adapter": "CSVFallbackAdapter",
+      "fallback_source": "FDM example Funded Cases.csv",
+      "case_ref_column": "Solicitor Reference",
+      "status_column": "Status",
+      "migration_note": "Using 2117 cases from FDM CSV (1037 Active, 1080 Complete) until ProclaimCRMAdapter endpoints available"
+    },
+    "api_limitations": {
+      "bulk_case_enumeration": "not_available",
+      "change_detection": "not_available",
+      "high_watermark_sync": "not_available",
+      "workaround": "CSV fallback with simulated serial numbers"
+    }
+  },
+  "processing_config": {
+    "concurrent_limit": 25,
+    "retry_attempts": 3,
+    "session_timeout_hours": 6,
+    "max_jobs_per_hour": 120,
+    "batch_size": 100,
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 60,
+      "burst_limit": 10
+    }
+  },
+  "vector_config": {
+    "shared_indexes": true,
+    "case_summaries_index": "caseguard-case-summaries",
+    "case_details_index": "caseguard-case-details",
+    "embedding_model": "text-embedding-3-large",
+    "chunk_size": 800,
+    "dimension": 3072,
+    "metadata_filters": {
+      "tenant_id": "fdm_solicitors",
+      "privacy_level": "confidential"
+    }
+  },
+  "document_config": {
+    "allowed_extensions": [
+      ".pdf", ".doc", ".docx", ".txt", ".rtf",
+      ".xls", ".xlsx", ".ppt", ".pptx",
+      ".jpg", ".jpeg", ".png", ".tiff",
+      ".eml", ".msg"
+    ],
+    "max_file_size_mb": 50,
+    "llamaparse_only": true,
+    "processing_priority": {
+      "legal_documents": [".pdf", ".doc", ".docx"],
+      "correspondence": [".eml", ".msg", ".txt"],
+      "financial": [".xls", ".xlsx"],
+      "evidence": [".jpg", ".jpeg", ".png", ".tiff"]
+    }
+  },
+  "database_config": {
+    "schema": "fdm_solicitors",
+    "isolation_level": "strict",
+    "retention_policy": {
+      "case_data_years": 10,
+      "vector_data_years": 5,
+      "audit_logs_years": 7
+    }
+  },
+  "ai_config": {
+    "enrichment_enabled": true,
+    "model": "gpt-4o-mini",
+    "temperature": 0.1,
+    "max_tokens": 4000,
+    "analysis_types": [
+      "case_summary",
+      "settlement_likelihood",
+      "risk_assessment",
+      "timeline_analysis",
+      "recommended_actions"
+    ],
+    "confidence_threshold": 0.7
+  },
+  "sync_config": {
+    "daily_sync_enabled": true,
+    "sync_schedule": "0 2 * * *",
+    "change_detection_method": "high_watermark",
+    "full_sync_frequency_days": 7,
+    "validation_enabled": true,
+    "dry_run_before_sync": true
+  },
+  "monitoring_config": {
+    "health_checks_enabled": true,
+    "metrics_retention_days": 30,
+    "alerting": {
+      "error_threshold": 0.05,
+      "latency_threshold_seconds": 30,
+      "queue_depth_threshold": 1000
+    },
+    "notifications": {
+      "email": "admin@fdmsolicitors.co.uk",
+      "slack_webhook": "${SLACK_WEBHOOK_URL}",
+      "on_failure": true,
+      "on_completion": false,
+      "daily_summary": true
+    }
+  },
+  "compliance_config": {
+    "gdpr_compliance": true,
+    "data_encryption": "AES-256",
+    "audit_logging": true,
+    "data_retention": {
+      "personal_data_years": 6,
+      "case_documents_years": 10,
+      "system_logs_days": 90
+    },
+    "access_controls": {
+      "role_based_access": true,
+      "multi_factor_auth": true,
+      "session_timeout_minutes": 60
+    }
+  },
+  "case_data_summary": {
+    "total_cases": 2117,
+    "active_cases": 1037,
+    "complete_cases": 1080,
+    "data_source": "FDM example Funded Cases.csv",
+    "last_updated": "2024-09-26T00:00:00Z",
+    "categories": {
+      "Personal Injury": 892,
+      "Clinical Negligence": 445,
+      "Employment": 267,
+      "Commercial": 513
+    }
+  },
+  "deployment_notes": [
+    "Tenant uses CSV fallback adapter until Proclaim API extensions available",
+    "Case discovery limited to static CSV data with 2117 total cases",
+    "High-watermark sync simulated using hash-based serial numbers",
+    "Production deployment requires enhanced CRM API endpoints",
+    "Vector indexes shared across tenants with metadata-based isolation"
+  ]
+}
