@@ -47,8 +47,8 @@ services:
     image: prefecthq/prefect:2.19-python3.11
     container_name: caseguard-prefect-server-staging
     environment:
-      PREFECT_UI_URL: http://0.0.0.0:4201/api
-      PREFECT_API_URL: http://0.0.0.0:4201/api
+      PREFECT_UI_URL: http://0.0.0.0:4200/api
+      PREFECT_API_URL: http://0.0.0.0:4200/api
       PREFECT_SERVER_API_HOST: 0.0.0.0
       PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://caseguard_user:${POSTGRES_PASSWORD:-caseguard_staging_password}@postgres:5432/caseguard_v2_staging
     ports:

@@ -79,6 +79,30 @@ async def test_ai():
 asyncio.run(test_ai())
 "
 
+# Test API endpoints
+poetry run python -c "
+from api.main import app
+print('✅ API import successful')
+"
+
+# Test health endpoints
+poetry run python -c "
+import asyncio
+from api.main import simple_health_check, health_check
+
+async def test_health():
+    simple_result = await simple_health_check()
+    print('✅ Simple health endpoint working:', simple_result['status'])
+
+    health_result = await health_check()
+    print('✅ Full health endpoint working:', health_result.body.decode())
+
+asyncio.run(test_health())
+"
+
+# Start the API server for testing
+poetry run python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
 # Run pytest tests
 poetry run pytest tests/ -v
 
