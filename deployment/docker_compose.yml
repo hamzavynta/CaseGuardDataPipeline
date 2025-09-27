@@ -12,7 +12,6 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -47,13 +46,13 @@ services:
     image: prefecthq/prefect:2.19-python3.11
     container_name: caseguard-prefect-server
     environment:
-      PREFECT_UI_URL: http://0.0.0.0:4200/api
+      PREFECT_UI_URL: http://0.0.0.0:4200
       PREFECT_API_URL: http://0.0.0.0:4200/api
       PREFECT_SERVER_API_HOST: 0.0.0.0
       PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://caseguard_user:${POSTGRES_PASSWORD:-caseguard_secure_password}@postgres:5432/caseguard_v2
       PREFECT_API_DATABASE_MIGRATE_ON_START: "True"
       PREFECT_API_DATABASE_CONNECTION_TIMEOUT: "10"
-      PYTHONWARNINGS: "ignore::SAWarning"
+      PYTHONWARNINGS: "ignore::sqlalchemy.exc.SAWarning"
     ports:
       - "${PREFECT_PORT:-4200}:4200"
     command: prefect server start --host 0.0.0.0
