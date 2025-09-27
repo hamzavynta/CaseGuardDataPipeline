@@ -9,7 +9,12 @@ from sqlalchemy import create_engine
 
 def get_postgres_url() -> str:
     """Get PostgreSQL connection URL from environment or config."""
-    # Try environment variables first
+    # Try DATABASE_URL first (if provided in full)
+    database_url = os.getenv("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    # Fallback to individual environment variables
     host = os.getenv("POSTGRES_HOST", "localhost")
     port = os.getenv("POSTGRES_PORT", "5432")
     database = os.getenv("POSTGRES_DATABASE", "caseguard_v2")
@@ -17,7 +22,7 @@ def get_postgres_url() -> str:
     password = os.getenv("POSTGRES_PASSWORD", "")
 
     if not username or not password:
-        raise ValueError("PostgreSQL credentials not found. Set POSTGRES_USERNAME and POSTGRES_PASSWORD environment variables.")
+        raise ValueError("PostgreSQL credentials not found. Set DATABASE_URL or POSTGRES_USERNAME and POSTGRES_PASSWORD environment variables.")
 
     return f"postgresql://{username}:{password}@{host}:{port}/{database}"
 

@@ -5,21 +5,22 @@ import logging
 from contextlib import contextmanager
 from typing import Generator, Any
 
-# Import existing session management from current implementation
-from caseguard.utils.session_manager import SessionManager as LegacySessionManager
+# Import Proclaim components for integration
+from caseguard.utils.session_manager import SessionManager as ProclaimSessionManager
+from caseguard.proclaim.client import ProclaimClient
 
 logger = logging.getLogger(__name__)
 
 
-class V2SessionManager(LegacySessionManager):
-    """Enhanced session manager for V2 with improved lifecycle management."""
+class V2SessionManager:
+    """Enhanced session manager for V2 with Proclaim client integration."""
 
     def __init__(self):
         """Initialize V2 session manager with signal handlers."""
-        super().__init__()
-        self.setup_signal_handlers()
-        self._active_sessions = 0
+        self.proclaim_session_manager = ProclaimSessionManager()
+        self._active_sessions = {}
         self._max_session_duration = 6 * 3600  # 6 hours in seconds
+        self.setup_signal_handlers()
 
     def setup_signal_handlers(self) -> None:
         """Setup graceful shutdown signal handlers."""
@@ -82,50 +83,36 @@ class V2SessionManager(LegacySessionManager):
             except Exception as e:
                 logger.error(f"Error cleaning up bulk processing session: {e}")
 
-    def get_session(self) -> Any:
-        """Get active session with enhanced error handling.
+    def get_proclaim_client(self, tenant_id: str) -> ProclaimClient:
+        """Get configured ProclaimClient with session management.
+
+        Args:
+            tenant_id: Tenant identifier
 
         Returns:
-            Active session object
-
-        Raises:
-            RuntimeError: If session cannot be obtained
+            ProclaimClient instance
         """
-        try:
-            session = super().load_session()
+        if tenant_id not in self._active_sessions:
+            import os
 
-            if session:
-                # Check session age
-                import datetime
-                created_at = datetime.datetime.fromisoformat(session['created_at'])
-                age_seconds = (datetime.datetime.now() - created_at).total_seconds()
+            client = ProclaimClient(
+                base_url=os.getenv('PROCLAIM_BASE_URL'),
+                username=os.getenv('PROCLAIM_USERNAME'),
+                password=os.getenv('PROCLAIM_PASSWORD'),
+                tenant_id=tenant_id
+            )
+            self._active_sessions[tenant_id] = client
 
-                if age_seconds > self._max_session_duration:
-                    logger.warning(f"Session expired ({age_seconds/3600:.1f}h old), creating new session")
-                    self.cleanup_session()
-                    session = None
+        return self._active_sessions[tenant_id]
 
-            # Create new session if needed
-            if not session:
-                logger.info("Creating new Proclaim session")
-                # This would typically authenticate with Proclaim API
-                # For now, return existing session structure
-                session = super().load_session()
-
-            return session
-
-        except Exception as e:
-            logger.error(f"Failed to get session: {e}")
-            raise RuntimeError(f"Session acquisition failed: {e}") from e
-
-    def cleanup_session(self) -> None:
-        """Enhanced session cleanup with error handling."""
-        try:
-            logger.info("Cleaning up Proclaim session")
-            super().clear_session()
-            logger.info("Session cleanup completed")
-        except Exception as e:
-            logger.error(f"Session cleanup error: {e}")
+    def _cleanup_sessions(self):
+        """Clean up all active sessions."""
+        for client in self._active_sessions.values():
+            try:
+                client._cleanup_session()
+            except Exception as e:
+                logger.warning(f"Error cleaning up session: {e}")
+        self._active_sessions.clear()
 
     @contextmanager
     def transient_session(self) -> Generator[Any, None, None]:
