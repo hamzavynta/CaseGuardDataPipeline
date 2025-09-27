@@ -75,6 +75,17 @@ jobs:
         STAGING_HOST: ${{ secrets.STAGING_HOST }}
         STAGING_SSH_USER: ${{ secrets.STAGING_SSH_USER }}
 
+    - name: Copy deployment files to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: "178.62.78.12"
+        username: "deploy"
+        key: ${{ secrets.STAGING_SSH_KEY }}
+        port: 22
+        source: "deployment/docker-compose.staging.yml,deployment/nginx/"
+        target: "/opt/caseguard-staging/"
+        strip_components: 1
+
     - name: Deploy to staging server
       uses: appleboy/ssh-action@v1.0.3
       with:
