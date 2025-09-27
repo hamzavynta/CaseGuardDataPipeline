@@ -1,0 +1,105 @@
+[tool.poetry]
+name = "caseguard-datapipelines"
+version = "2.0.0"
+description = "CaseGuard V2 - Multi-tenant data pipeline architecture for legal case management"
+authors = ["VyntaLab <team@vyntalab.com>"]
+readme = "README.md"
+packages = [
+    {include = "core"},
+    {include = "database"},
+    {include = "etl"},
+    {include = "crm"},
+    {include = "ai"},
+    {include = "proclaim"},
+    {include = "caseguard"},
+    {include = "docproc"},
+    {include = "monitoring"},
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.14"
+# Dependencies will be added using 'poetry add <package>' commands
+# This ensures Poetry selects compatible versions automatically
+zeep = "^4.3.2"
+boto3 = "^1.40.40"
+openai = "^1.109.1"
+tqdm = "^4.67.1"
+requests = "^2.32.5"
+python-dateutil = "^2.9.0.post0"
+
+[tool.poetry.group.dev.dependencies]
+# Development dependencies will be added using 'poetry add --group dev <package>'
+pytest = "^8.4.2"
+pytest-asyncio = "^1.2.0"
+pytest-cov = "^7.0.0"
+pytest-html = "^4.1.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py39']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+line_length = 100
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "caseguard.*",
+    "prefect.*",
+    "pinecone.*",
+    "llama_parse.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "tests",
+]
+pythonpath = [
+    "."
+]
+asyncio_mode = "auto"
+
+[tool.poetry.scripts]
+caseguard-worker = "etl.worker:main"
+caseguard-api = "api.main:main"
