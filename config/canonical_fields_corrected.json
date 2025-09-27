@@ -1,0 +1,193 @@
+{
+  "global_fields": {
+    "description": "Global fields accessible via direct API calls",
+    "fields": {
+      "case_ref": {
+        "api_path": "case_ref",
+        "extraction_method": "direct_api",
+        "data_type": "string",
+        "required": true
+      },
+      "handler_name": {
+        "api_path": "handler.name",
+        "extraction_method": "direct_api",
+        "data_type": "string",
+        "required": false
+      },
+      "date_opened": {
+        "api_path": "opened_date",
+        "extraction_method": "direct_api",
+        "data_type": "date",
+        "required": false
+      },
+      "profit_costs_incurred": {
+        "api_path": "costs.profit_costs",
+        "extraction_method": "direct_api",
+        "data_type": "decimal",
+        "required": false
+      }
+    }
+  },
+  "hdr_fields": {
+    "description": "HDR (Housing Disrepair) specific fields via timeline extraction",
+    "fields": {
+      "claimant_name": {
+        "extraction_method": "party_extraction",
+        "party_type": "claimant",
+        "data_type": "string",
+        "required": false
+      },
+      "defendant_name": {
+        "extraction_method": "party_extraction",
+        "party_type": "defendant",
+        "data_type": "string",
+        "required": false
+      },
+      "case_status": {
+        "extraction_method": "direct_hdr",
+        "hdr_field": "status",
+        "data_type": "string",
+        "required": false
+      },
+      "case_outcome": {
+        "extraction_method": "direct_hdr",
+        "hdr_field": "outcome",
+        "data_type": "string",
+        "required": false
+      },
+      "date_closed": {
+        "extraction_method": "direct_hdr",
+        "hdr_field": "date_closed",
+        "data_type": "date",
+        "required": false
+      },
+      "date_loc_sent": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["letter of claim", "loc sent", "letter before action"],
+        "data_type": "date",
+        "required": false
+      },
+      "date_landlord_response_received": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["landlord response", "response received", "defendant response"],
+        "data_type": "date",
+        "required": false
+      },
+      "date_expert_inspection": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["expert inspection", "survey", "inspection arranged"],
+        "data_type": "date",
+        "required": false
+      },
+      "date_proceedings_issued": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["proceedings issued", "claim form", "court proceedings"],
+        "data_type": "date",
+        "required": false
+      },
+      "date_trial_listed": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["trial listed", "hearing date", "trial date"],
+        "data_type": "date",
+        "required": false
+      },
+      "settlement_amount": {
+        "extraction_method": "timeline_search",
+        "search_terms": ["settlement", "agreed amount", "damages awarded"],
+        "data_type": "decimal",
+        "required": false
+      },
+      "total_costs_claimed": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "total_claimed",
+        "data_type": "decimal",
+        "required": false
+      },
+      "total_costs_recovered": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "total_recovered",
+        "data_type": "decimal",
+        "required": false
+      },
+      "solicitor_costs": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "solicitor",
+        "data_type": "decimal",
+        "required": false
+      },
+      "counsel_costs": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "counsel",
+        "data_type": "decimal",
+        "required": false
+      },
+      "expert_costs": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "expert",
+        "data_type": "decimal",
+        "required": false
+      },
+      "court_fees": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "court_fees",
+        "data_type": "decimal",
+        "required": false
+      },
+      "after_the_event_premium": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "ate_premium",
+        "data_type": "decimal",
+        "required": false
+      },
+      "success_fee": {
+        "extraction_method": "costs_extraction",
+        "cost_type": "success_fee",
+        "data_type": "decimal",
+        "required": false
+      },
+      "property_address": {
+        "extraction_method": "party_extraction",
+        "party_type": "property",
+        "data_type": "string",
+        "required": false
+      },
+      "property_type": {
+        "extraction_method": "case_details",
+        "detail_field": "property_type",
+        "data_type": "string",
+        "required": false
+      },
+      "disrepair_issues": {
+        "extraction_method": "case_details",
+        "detail_field": "disrepair_categories",
+        "data_type": "array",
+        "required": false
+      },
+      "lease_type": {
+        "extraction_method": "case_details",
+        "detail_field": "tenancy_type",
+        "data_type": "string",
+        "required": false
+      },
+      "client_vulnerability": {
+        "extraction_method": "party_extraction",
+        "party_type": "claimant",
+        "detail_field": "vulnerability_factors",
+        "data_type": "array",
+        "required": false
+      },
+      "funding_type": {
+        "extraction_method": "case_details",
+        "detail_field": "funding_arrangement",
+        "data_type": "string",
+        "required": false
+      },
+      "insurance_details": {
+        "extraction_method": "case_details",
+        "detail_field": "insurance_policy",
+        "data_type": "string",
+        "required": false
+      }
+    }
+  }
+}
