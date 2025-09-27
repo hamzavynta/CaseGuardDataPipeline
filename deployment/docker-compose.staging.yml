@@ -1,0 +1,220 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for staging
+  postgres:
+    image: postgres:16-alpine
+    container_name: caseguard-postgres-staging
+    environment:
+      POSTGRES_DB: caseguard_v2_staging
+      POSTGRES_USER: caseguard_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-caseguard_staging_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "5433:5432"  # Different port for staging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U caseguard_user -d caseguard_v2_staging"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+
+  # Valkey (Redis) for job queuing and caching
+  valkey:
+    image: valkey/valkey:7.2-alpine
+    container_name: caseguard-valkey-staging
+    command: valkey-server --requirepass ${REDIS_PASSWORD:-caseguard_redis_staging}
+    volumes:
+      - valkey_staging_data:/data
+    ports:
+      - "6380:6379"  # Different port for staging
+    healthcheck:
+      test: ["CMD", "valkey-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-caseguard_redis_staging}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+
+  # Prefect server for workflow orchestration
+  prefect-server:
+    image: prefecthq/prefect:2.19-python3.11
+    container_name: caseguard-prefect-server-staging
+    environment:
+      PREFECT_UI_URL: http://0.0.0.0:4201/api
+      PREFECT_API_URL: http://0.0.0.0:4201/api
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://caseguard_user:${POSTGRES_PASSWORD:-caseguard_staging_password}@postgres:5432/caseguard_v2_staging
+    ports:
+      - "4201:4200"  # Different port for staging
+    command: prefect server start --host 0.0.0.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4200/api/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+
+  # CaseGuard V2 main application
+  caseguard-api:
+    image: ghcr.io/hamzavynta/caseguard/datapipelines:staging
+    container_name: caseguard-api-staging
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://caseguard_user:${POSTGRES_PASSWORD:-caseguard_staging_password}@postgres:5432/caseguard_v2_staging
+
+      # Redis/Valkey configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD:-caseguard_redis_staging}@valkey:6379
+
+      # Prefect configuration
+      PREFECT_API_URL: http://prefect-server:4200/api
+
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      LLAMA_CLOUD_API_KEY: ${LLAMA_CLOUD_API_KEY}
+
+      # Proclaim configuration
+      PROCLAIM_BASE_URL: ${PROCLAIM_BASE_URL}
+      PROCLAIM_USERNAME: ${PROCLAIM_USERNAME}
+      PROCLAIM_PASSWORD: ${PROCLAIM_PASSWORD}
+      PROCLAIM_WSDL_PATH: ${PROCLAIM_WSDL_PATH:-Proclaim.wsdl}
+
+      # DigitalOcean Spaces configuration
+      SPACES_BUCKET: ${SPACES_BUCKET:-caseguard-documents-staging}
+      SPACES_REGION: ${SPACES_REGION:-nyc3}
+      SPACES_ENDPOINT_URL: ${SPACES_ENDPOINT_URL}
+      SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY}
+      SPACES_SECRET_KEY: ${SPACES_SECRET_KEY}
+
+      # Application settings
+      CASEGUARD_ENV: staging
+      TENANT_CONFIG_DIR: /app/configs/tenants
+      LOG_LEVEL: ${LOG_LEVEL:-DEBUG}
+
+      # Security
+      SECRET_KEY: ${SECRET_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Performance
+      MAX_WORKERS: ${MAX_WORKERS:-2}
+      WORKER_TIMEOUT: ${WORKER_TIMEOUT:-120}
+    volumes:
+      - ../output:/app/output
+      - ../data:/app/data
+      - logs_staging:/app/logs
+    ports:
+      - "8001:8000"  # Different port for staging
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      prefect-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+
+  # Prefect worker for processing jobs
+  prefect-worker:
+    image: ghcr.io/hamzavynta/caseguard/datapipelines-worker:staging
+    container_name: caseguard-prefect-worker-staging
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql://caseguard_user:${POSTGRES_PASSWORD:-caseguard_staging_password}@postgres:5432/caseguard_v2_staging
+
+      # Redis/Valkey configuration
+      REDIS_URL: redis://:${REDIS_PASSWORD:-caseguard_redis_staging}@valkey:6379
+
+      # Prefect configuration
+      PREFECT_API_URL: http://prefect-server:4200/api
+
+      # API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      LLAMA_CLOUD_API_KEY: ${LLAMA_CLOUD_API_KEY}
+
+      # Proclaim configuration
+      PROCLAIM_BASE_URL: ${PROCLAIM_BASE_URL}
+      PROCLAIM_USERNAME: ${PROCLAIM_USERNAME}
+      PROCLAIM_PASSWORD: ${PROCLAIM_PASSWORD}
+
+      # DigitalOcean Spaces configuration
+      SPACES_BUCKET: ${SPACES_BUCKET:-caseguard-documents-staging}
+      SPACES_REGION: ${SPACES_REGION:-nyc3}
+      SPACES_ENDPOINT_URL: ${SPACES_ENDPOINT_URL}
+      SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY}
+      SPACES_SECRET_KEY: ${SPACES_SECRET_KEY}
+
+      # Worker settings
+      WORKER_NAME: caseguard-worker-staging-1
+      WORK_POOL_NAME: caseguard-staging-pool
+      PREFECT_LOGGING_LEVEL: ${LOG_LEVEL:-DEBUG}
+    volumes:
+      - ../output:/app/output
+      - ../data:/app/data
+      - logs_staging:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      prefect-server:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+    deploy:
+      replicas: 1  # Single worker for staging
+
+  # Nginx reverse proxy for staging
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: caseguard-nginx-staging
+    volumes:
+      - ./nginx/nginx.staging.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - nginx_logs_staging:/var/log/nginx
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # SSL certificates
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - caseguard-api
+    restart: unless-stopped
+    networks:
+      - caseguard-staging-network
+
+networks:
+  caseguard-staging-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+
+volumes:
+  postgres_staging_data:
+    driver: local
+  valkey_staging_data:
+    driver: local
+  nginx_logs_staging:
+    driver: local
+  logs_staging:
+    driver: local
