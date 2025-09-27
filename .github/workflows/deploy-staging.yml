@@ -12,7 +12,6 @@ env:
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
-    environment: staging
     permissions:
       contents: read
       packages: write
@@ -62,6 +61,14 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
+
+    - name: Debug secrets availability
+      run: |
+        echo "Checking secrets availability..."
+        echo "STAGING_HOST is set: ${{ secrets.STAGING_HOST != '' }}"
+        echo "STAGING_SSH_USER is set: ${{ secrets.STAGING_SSH_USER != '' }}"
+        echo "STAGING_SSH_KEY is set: ${{ secrets.STAGING_SSH_KEY != '' }}"
+        echo "STAGING_ENV_FILE is set: ${{ secrets.STAGING_ENV_FILE != '' }}"
 
     - name: Deploy to staging server
       uses: appleboy/ssh-action@v1.0.3
