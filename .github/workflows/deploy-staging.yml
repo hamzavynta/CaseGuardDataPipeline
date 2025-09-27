@@ -7,12 +7,15 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: caseguard-datapipelines
 
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
     environment: staging
+    permissions:
+      contents: read
+      packages: write
 
     steps:
     - name: Checkout code
@@ -32,7 +35,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
         tags: |
           type=ref,event=branch
           type=sha,prefix={{branch}}-
@@ -55,7 +58,7 @@ jobs:
         context: .
         file: ./deployment/Dockerfile.worker
         push: true
-        tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:staging
+        tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}-worker:staging,${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}-worker:develop
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
@@ -77,8 +80,8 @@ jobs:
           echo "${{ secrets.STAGING_ENV_FILE }}" > .env
 
           # Update image tags in docker-compose
-          sed -i "s|ghcr.io/.*:.*|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging|g" docker-compose.staging.yml
-          sed -i "s|ghcr.io/.*-worker:.*|${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-worker:staging|g" docker-compose.staging.yml
+          sed -i "s|ghcr.io/.*:.*|${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:staging|g" docker-compose.staging.yml
+          sed -i "s|ghcr.io/.*-worker:.*|${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}-worker:staging|g" docker-compose.staging.yml
 
           # Pull latest images
           docker compose -f docker-compose.staging.yml pull
@@ -91,7 +94,7 @@ jobs:
           sleep 30
 
           # Health check
-          if ! curl -f http://localhost:8000/health > /dev/null 2>&1; then
+          if ! curl -f http://localhost:8001/health > /dev/null 2>&1; then
             echo "Health check failed, rolling back..."
             docker compose -f docker-compose.staging.yml logs --tail=50
             exit 1

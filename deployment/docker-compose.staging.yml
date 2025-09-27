@@ -68,7 +68,7 @@ services:
 
   # CaseGuard V2 main application
   caseguard-api:
-    image: ghcr.io/hamzavynta/caseguard/datapipelines:staging
+    image: ghcr.io/hamzavynta/caseguard-datapipelines:staging
     container_name: caseguard-api-staging
     environment:
       # Database configuration
@@ -134,7 +134,7 @@ services:
 
   # Prefect worker for processing jobs
   prefect-worker:
-    image: ghcr.io/hamzavynta/caseguard/datapipelines-worker:staging
+    image: ghcr.io/hamzavynta/caseguard-datapipelines-worker:staging
     container_name: caseguard-prefect-worker-staging
     environment:
       # Database configuration
