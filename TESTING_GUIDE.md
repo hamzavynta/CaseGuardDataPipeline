@@ -6,34 +6,33 @@ This guide walks you through testing the complete V2 implementation step by step
 
 ### 1. Environment Setup
 
-First, set up your environment file:
+First, set up your environment and dependencies:
 
 ```bash
+# Install Poetry dependencies
+poetry install --with dev
+
 # Copy the environment template
-cp v2/.env.example v2/.env
+cp .env.example .env
 
 # Edit the .env file with your actual credentials
-nano v2/.env
+nano .env
 ```
 
 **Minimum required credentials:**
 - `OPENAI_API_KEY` - For AI enrichment
 - `PINECONE_API_KEY` - For vector storage
 - `LLAMA_CLOUD_API_KEY` - For document processing
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL` - Managed PostgreSQL connection string (already configured)
 
 ### 2. Database Setup
 
 ```bash
-# Start PostgreSQL (if not running)
-sudo systemctl start postgresql
-
-# Create the database
-createdb caseguard_v2
+# Using managed PostgreSQL database (already configured in .env)
+# No need to start local PostgreSQL service
 
 # Set up Alembic migrations
-cd v2
-python -c "
+poetry run python -c "
 from database.alembic_setup import setup_alembic, upgrade_database
 setup_alembic()
 upgrade_database()
@@ -43,14 +42,14 @@ upgrade_database()
 ### 3. Start Core Services
 
 ```bash
-# Terminal 1: Start Redis/Valkey
-redis-server
+# Terminal 1: Start local Redis instance (already running)
+# redis-server (assumed to be already running locally)
 
 # Terminal 2: Start Prefect server
-prefect server start
+poetry run prefect server start
 
 # Terminal 3: Test basic connectivity
-python -c "
+poetry run python -c "
 from core.session_manager import SessionManager
 sm = SessionManager()
 print('✅ Database connection successful')
@@ -63,7 +62,7 @@ print('✅ Database connection successful')
 
 ```bash
 # Test database models
-python -c "
+poetry run python -c "
 from database.models import CaseModel, ProcessingJob
 from datetime import datetime
 
@@ -77,7 +76,7 @@ print('✅ Models working:', case.case_ref)
 "
 
 # Test session manager
-python -c "
+poetry run python -c "
 from core.session_manager import SessionManager
 sm = SessionManager()
 with sm.get_session() as session:
@@ -89,14 +88,14 @@ with sm.get_session() as session:
 
 ```bash
 # Test Prefect configuration
-python -c "
+poetry run python -c "
 from etl.prefect_config import setup_prefect_environment, get_work_pool
 setup_prefect_environment()
 print('✅ Prefect environment configured')
 "
 
 # Test AI enrichment engine
-python -c "
+poetry run python -c "
 from etl.ai_engine import AIEnrichmentEngine
 import asyncio
 
@@ -113,7 +112,7 @@ asyncio.run(test_ai())
 "
 
 # Test individual case processing flow
-python -c "
+poetry run python -c "
 import asyncio
 from etl.flows.process_case import process_proclaim_case
 
@@ -133,7 +132,7 @@ asyncio.run(test_flow())
 
 ```bash
 # Test case discovery adapters
-python -c "
+poetry run python -c "
 import asyncio
 from crm.discovery import CSVFallbackAdapter
 
@@ -146,7 +145,7 @@ asyncio.run(test_discovery())
 "
 
 # Test change tracking
-python -c "
+poetry run python -c "
 import asyncio
 from database.change_tracking import ChangeTracker
 
@@ -164,7 +163,7 @@ asyncio.run(test_tracking())
 
 ```bash
 # Test tenant management
-python -c "
+poetry run python -c "
 import asyncio
 from core.tenant_manager import TenantManager
 
@@ -177,7 +176,7 @@ asyncio.run(test_tenant())
 "
 
 # Test monitoring dashboard
-python -c "
+poetry run python -c "
 import asyncio
 from monitoring.dashboard import MonitoringDashboard
 
@@ -190,7 +189,7 @@ asyncio.run(test_monitoring())
 "
 
 # Test error handling
-python -c "
+poetry run python -c "
 from core.error_handling import ErrorHandler, CaseGuardError, ErrorContext
 
 handler = ErrorHandler('fdm_solicitors')
@@ -324,7 +323,7 @@ if __name__ == "__main__":
 EOF
 
 # Run the test
-python test_full_pipeline.py
+poetry run python test_full_pipeline.py
 ```
 
 ### Test with Docker
@@ -367,22 +366,23 @@ curl http://localhost:8000/health
 2. **Missing API Keys**
    ```bash
    # Check environment variables are loaded
-   python -c "import os; print('OPENAI_API_KEY' in os.environ)"
+   poetry run python -c "import os; print('OPENAI_API_KEY' in os.environ)"
    ```
 
 3. **Prefect Connection Issues**
    ```bash
    # Start Prefect server
-   prefect server start
+   poetry run prefect server start
 
    # Check API URL
-   prefect config view
+   poetry run prefect config view
    ```
 
 4. **Import Errors**
    ```bash
-   # Ensure PYTHONPATH is set
-   export PYTHONPATH=/home/hamza/CaseGuard/EmbeddingPipeline:$PYTHONPATH
+   # Ensure Poetry virtual environment is activated
+   poetry shell
+   # Or run commands with poetry run prefix
    ```
 
 ### Expected Warnings
